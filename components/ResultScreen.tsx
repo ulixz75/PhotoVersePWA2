@@ -81,6 +81,10 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
           text: getFullPoemText(),
         });
       } catch (error) {
+        // Ignore AbortError which happens when user cancels the share dialog
+        if (error instanceof Error && error.name === 'AbortError') {
+            return;
+        }
         console.error('Error sharing:', error);
       }
     } else {
@@ -98,30 +102,37 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
     });
 
   // --- Canvas Generation Logic ---
-  const wrapText = (ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) => {
+  
+  // Helper: Split text into lines based on max width
+  const getLines = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] => {
     const paragraphs = text.split('\n');
-    let currentY = y;
+    let lines: string[] = [];
 
     paragraphs.forEach(paragraph => {
         const words = paragraph.split(' ');
-        let line = '';
+        let currentLine = words[0];
 
-        for (let n = 0; n < words.length; n++) {
-            const testLine = line + words[n] + ' ';
-            const metrics = ctx.measureText(testLine);
-            const testWidth = metrics.width;
-            if (testWidth > maxWidth && n > 0) {
-                ctx.fillText(line, x, currentY);
-                line = words[n] + ' ';
-                currentY += lineHeight;
+        for (let i = 1; i < words.length; i++) {
+            const word = words[i];
+            const width = ctx.measureText(currentLine + " " + word).width;
+            if (width < maxWidth) {
+                currentLine += " " + word;
             } else {
-                line = testLine;
+                lines.push(currentLine);
+                currentLine = word;
             }
         }
-        ctx.fillText(line, x, currentY);
-        currentY += lineHeight; // Espacio extra para nueva línea
+        lines.push(currentLine);
     });
-    return currentY;
+    return lines;
+  };
+
+  // Helper: Draw lines and return final Y position
+  const drawLines = (ctx: CanvasRenderingContext2D, lines: string[], x: number, y: number, lineHeight: number) => {
+      lines.forEach((line, index) => {
+          ctx.fillText(line, x, y + (index * lineHeight));
+      });
+      return y + (lines.length * lineHeight);
   };
 
   const handleDownloadImage = async () => {
@@ -160,26 +171,65 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
         if (selectedTemplate === ShareTemplate.Polaroid) ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
 
-        // Fonts
-        const titleFont = `bold ${48 * scale}px "Times New Roman", serif`;
-        const bodyFont = `${32 * scale}px "Times New Roman", serif`;
-        const creditFont = `italic ${24 * scale}px "Times New Roman", serif`;
+        // Base Fonts Configuration
+        const titleFontSize = 48 * scale;
+        const baseBodyFontSize = selectedTemplate === ShareTemplate.Polaroid ? 28 * scale : 32 * scale;
+        const creditFontSize = 24 * scale;
+
+        const titleFontStr = `bold ${titleFontSize}px "Times New Roman", serif`;
+        const creditFontStr = `italic ${creditFontSize}px "Times New Roman", serif`;
         
-        // Drawing Logic
+        // --- Helper to auto-fit text ---
+        const fitTextToArea = (
+            text: string, 
+            maxWidth: number, 
+            maxHeight: number, 
+            startFontSize: number,
+            fontFace: string = '"Times New Roman", serif'
+        ) => {
+            let fontSize = startFontSize;
+            let lines: string[] = [];
+            let lineHeight = fontSize * 1.4;
+            let totalHeight = 0;
+
+            // Minimum font size to prevent unreadable text
+            const minFontSize = 14 * scale; 
+
+            do {
+                ctx.font = `${fontSize}px ${fontFace}`;
+                lineHeight = fontSize * 1.4;
+                lines = getLines(ctx, text, maxWidth);
+                totalHeight = lines.length * lineHeight;
+                
+                if (totalHeight > maxHeight && fontSize > minFontSize) {
+                    fontSize -= 2; // Reduce font size
+                } else {
+                    break; // Fits or reached min size
+                }
+            } while (fontSize > minFontSize);
+
+            return { fontSize, lines, lineHeight, totalHeight };
+        };
+
+
+        // --- Drawing Logic ---
+        
         if (selectedTemplate === ShareTemplate.Story) {
             // Story: Img top half, Text bottom half card
             const imgHeight = height * 0.55;
+            
             // Draw Image (cover)
             const aspect = img.naturalWidth / img.naturalHeight;
             let drawW = width;
             let drawH = width / aspect;
             let drawX = 0;
-            let drawY = 0;
+            // let drawY = 0;
             if (drawH < imgHeight) {
                 drawH = imgHeight;
                 drawW = drawH * aspect;
                 drawX = (width - drawW) / 2;
             }
+            
             // Clip top area
             ctx.save();
             ctx.beginPath();
@@ -191,35 +241,51 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             // Text Container
             ctx.fillStyle = '#F0FDFA';
             ctx.beginPath();
-            ctx.roundRect(40 * scale, (imgHeight - 100 * scale), width - 80 * scale, height - imgHeight + 60 * scale, 40 * scale);
+            // Card floats a bit over the image
+            const cardY = imgHeight - 80 * scale;
+            const cardHeight = height - cardY - 60 * scale;
+            
+            ctx.roundRect(40 * scale, cardY, width - 80 * scale, cardHeight, 40 * scale);
             ctx.fill();
             ctx.shadowColor = "rgba(0,0,0,0.1)";
             ctx.shadowBlur = 20;
 
-            // Text
+            // Text setup
             ctx.fillStyle = '#1F2937';
             ctx.textAlign = 'center';
             
-            ctx.font = titleFont;
-            ctx.fillText(poem.title, width / 2, imgHeight + 60 * scale);
+            // Draw Title
+            ctx.font = titleFontStr;
+            const titleY = cardY + 120 * scale;
+            ctx.fillText(poem.title, width / 2, titleY);
 
-            ctx.font = bodyFont;
-            wrapText(ctx, poem.poem, width / 2, imgHeight + 160 * scale, width - 160 * scale, 45 * scale);
+            // Calculate available space for body
+            const footerSpace = 100 * scale; // Space for author
+            const bodyStartY = titleY + 40 * scale;
+            const maxBodyHeight = (cardY + cardHeight) - bodyStartY - footerSpace;
+            const contentWidth = width - 160 * scale;
+
+            // Auto-fit Body
+            const { fontSize, lines, lineHeight } = fitTextToArea(poem.poem, contentWidth, maxBodyHeight, baseBodyFontSize);
             
+            ctx.font = `${fontSize}px "Times New Roman", serif`;
+            drawLines(ctx, lines, width / 2, bodyStartY + lineHeight, lineHeight);
+            
+            // Author
             if (authorName) {
-                ctx.font = creditFont;
-                ctx.fillText(`- ${authorName}`, width / 2, height - 60 * scale);
+                ctx.font = creditFontStr;
+                ctx.fillText(`- ${authorName}`, width / 2, (cardY + cardHeight) - 50 * scale);
             }
 
         } else if (selectedTemplate === ShareTemplate.Square) {
-            // Post: Side by side style or Top/Bottom? Let's do Classic Top/Bottom for robustness
+            // Post: Image Top 50%, Text Bottom 50% (More space for text in square if poem is long)
             const margin = 50 * scale;
             const contentWidth = width - margin * 2;
             
-            // Draw Image (Top 60%)
-            const imgTargetHeight = height * 0.6;
+            // Draw Image (Top 50%)
+            const imgTargetHeight = height * 0.5;
             const aspect = img.naturalWidth / img.naturalHeight;
-            // Cover fit
+            
             let drawW = width;
             let drawH = width / aspect;
             let drawX = 0;
@@ -240,23 +306,38 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             ctx.drawImage(img, drawX, drawY, drawW, drawH);
             ctx.restore();
 
-            // Overlay Gradient for text readability if needed, but here we use solid bottom
+            // Text Background
             ctx.fillStyle = '#F0FDFA';
             ctx.fillRect(0, imgTargetHeight, width, height - imgTargetHeight);
 
-            // Text
+            // Text Logic
             ctx.fillStyle = '#1F2937';
             ctx.textAlign = 'center';
-            ctx.font = titleFont;
-            ctx.fillText(poem.title, width/2, imgTargetHeight + 80 * scale);
             
-            ctx.font = bodyFont;
-            wrapText(ctx, poem.poem, width/2, imgTargetHeight + 150 * scale, contentWidth, 40 * scale);
+            // Draw Title
+            ctx.font = titleFontStr;
+            const titleY = imgTargetHeight + 80 * scale;
+            ctx.fillText(poem.title, width/2, titleY);
+            
+            // Calculate space for body
+            const authorHeight = authorName ? 60 * scale : 0;
+            const bodyStartY = titleY + 20 * scale; // Start slightly below title
+            const maxBodyHeight = height - bodyStartY - margin - authorHeight;
+
+            // Auto-fit Body
+            const { fontSize, lines, lineHeight, totalHeight } = fitTextToArea(poem.poem, contentWidth, maxBodyHeight, baseBodyFontSize);
+
+            ctx.font = `${fontSize}px "Times New Roman", serif`;
+            // Center text block vertically in available space if it's short, otherwise start at top
+            const verticalOffset = (maxBodyHeight - totalHeight) / 2;
+            const actualStartY = bodyStartY + Math.max(0, verticalOffset);
+            
+            const textEndY = drawLines(ctx, lines, width/2, actualStartY + lineHeight, lineHeight);
 
             if (authorName) {
-                ctx.font = creditFont;
-                ctx.textAlign = 'right';
-                ctx.fillText(`- ${authorName}`, width - margin, height - margin);
+                ctx.font = creditFontStr;
+                ctx.textAlign = 'center'; // Center author in Square mode usually looks better, or right
+                ctx.fillText(`- ${authorName}`, width/2, height - margin/2);
             }
 
         } else {
@@ -270,7 +351,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             ctx.beginPath();
             ctx.rect(margin, topMargin, imgSize, imgSize);
             ctx.clip();
-             // Cover fit inside square
+            
             const aspect = img.naturalWidth / img.naturalHeight;
             let drawW = imgSize;
             let drawH = imgSize / aspect;
@@ -285,23 +366,53 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             ctx.drawImage(img, drawX, drawY, drawW, drawH);
             ctx.restore();
 
-            // Border Inner Shadow effect for realism
-            ctx.strokeStyle = '#ddd';
+            // Border Inner Shadow effect
+            ctx.strokeStyle = '#e5e5e5';
             ctx.lineWidth = 2;
             ctx.strokeRect(margin, topMargin, imgSize, imgSize);
 
-            // Text below
+            // Text Logic
             ctx.fillStyle = '#1F2937';
             ctx.textAlign = 'center';
-            ctx.font = titleFont;
-            ctx.fillText(poem.title, width/2, topMargin + imgSize + 100 * scale);
             
-            ctx.font = `${28 * scale}px "Courier New", monospace`; // Typewriter feel
-            wrapText(ctx, poem.poem, width/2, topMargin + imgSize + 160 * scale, width - margin*2, 35 * scale);
+            // Draw Title
+            ctx.font = titleFontStr;
+            const titleY = topMargin + imgSize + 80 * scale; // Space below image
+            ctx.fillText(poem.title, width/2, titleY);
+            
+            // Calculate space for body
+            const authorHeight = authorName ? 50 * scale : 0;
+            const bottomPadding = 40 * scale;
+            const bodyStartY = titleY + 20 * scale;
+            
+            // Available height for the poem body
+            const maxBodyHeight = height - bodyStartY - authorHeight - bottomPadding;
+            const contentWidth = width - margin * 2;
+
+            // Auto-fit Body
+            // Use Courier New for Polaroid feel
+            const { fontSize, lines, lineHeight, totalHeight } = fitTextToArea(
+                poem.poem, 
+                contentWidth, 
+                maxBodyHeight, 
+                baseBodyFontSize, 
+                '"Courier New", monospace'
+            );
+            
+            ctx.font = `${fontSize}px "Courier New", monospace`;
+            
+            // If text is short, center it vertically in the whitespace, otherwise top align
+            // (Optional: Polaroids usually look good top-aligned or centered. Let's center block if plenty of space)
+            // const verticalBlockOffset = Math.max(0, (maxBodyHeight - totalHeight) / 2);
+            const actualStartY = bodyStartY; // + verticalBlockOffset;
+
+            const textEndY = drawLines(ctx, lines, width/2, actualStartY + lineHeight, lineHeight);
 
              if (authorName) {
-                ctx.font = creditFont;
-                ctx.fillText(`- ${authorName}`, width/2, height - 50 * scale);
+                ctx.font = creditFontStr;
+                // Place author dynamically below text, but ensure it doesn't fall off if calculation was tight
+                const authorY = textEndY + 40 * scale; 
+                ctx.fillText(`- ${authorName}`, width/2, authorY);
             }
         }
 
@@ -470,12 +581,12 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
 
                 {selectedTemplate === ShareTemplate.Square && (
                     <>
-                         <div className="h-[60%] w-full overflow-hidden">
+                         <div className="h-[50%] w-full overflow-hidden">
                             {image && <img src={image} className="w-full h-full object-cover" alt="Preview" />}
                         </div>
-                        <div className="h-[40%] w-full bg-surface p-6 flex flex-col items-center justify-center text-center">
+                        <div className="h-[50%] w-full bg-surface p-6 flex flex-col items-center justify-center text-center">
                              <h2 className="text-xl font-bold text-text-dark font-serif mb-2">{poem?.title}</h2>
-                             <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed line-clamp-6">
+                             <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed line-clamp-[8] flex-1 overflow-hidden">
                                 {displayedPoem}
                             </p>
                              {authorName && <p className="text-text-light italic text-xs mt-2">- {authorName}</p>}
@@ -488,12 +599,12 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
                          <div className="aspect-square w-full bg-gray-100 border border-gray-200 overflow-hidden mb-6">
                              {image && <img src={image} className="w-full h-full object-cover" alt="Preview" />}
                          </div>
-                         <div className="flex-1 flex flex-col items-center text-center px-4">
+                         <div className="flex-1 flex flex-col items-center text-center px-4 overflow-hidden">
                              <h2 className="text-2xl font-bold text-text-dark font-serif mb-2">{poem?.title}</h2>
-                             <p className="text-text-dark whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                             <p className="text-text-dark whitespace-pre-wrap font-mono text-xs leading-relaxed flex-1 overflow-hidden">
                                 {displayedPoem}
                             </p>
-                             {authorName && <p className="text-text-light italic text-xs mt-auto">- {authorName}</p>}
+                             {authorName && <p className="text-text-light italic text-xs mt-2">- {authorName}</p>}
                          </div>
                     </>
                 )}
