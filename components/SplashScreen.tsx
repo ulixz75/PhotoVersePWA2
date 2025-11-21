@@ -57,7 +57,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ language }) => {
         </div>
 
         <h1 className="text-5xl md:text-6xl font-bold text-surface drop-shadow-xl mb-6 animate-title">
-          Photo Verse
+          Foto Verso
         </h1>
 
         <p className="text-lg md:text-xl font-semibold text-surface max-w-md drop-shadow-lg animate-subtitle">
