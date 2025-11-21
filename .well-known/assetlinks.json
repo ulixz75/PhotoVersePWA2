@@ -1,0 +1,14 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.run.us_west1.photoverse_app_265715129860.twa",
+      "sha256_cert_fingerprints": [
+        "AF:59:98:7D:7A:0E:CE:EA:51:6E:C0:63:54:1B:40:E8:55:6D:A8:06:43:15:51:74:98:18:B0:2C:4F:4A:49:D2",
+        "94:29:84:0C:BB:DF:40:21:43:20:27:86:AF:31:8D:F2:E0:C7:13:F9:3F:DF:10:44:3C:E0:E2:C0:EC:A3:09:86",
+        "B0:81:01:28:50:D1:A1:F0:3E:A4:9E:4D:23:34:C5:4E:B9:D3:A6:65:C4:95:ED:BB:6D:88:DD:AB:EF:EF:E7:BC"
+      ]
+    }
+  }
+]
