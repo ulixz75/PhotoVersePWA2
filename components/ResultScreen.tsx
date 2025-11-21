@@ -278,37 +278,47 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             }
 
         } else if (selectedTemplate === ShareTemplate.Square) {
-            // Post: Image Top 50%, Text Bottom 50% (More space for text in square if poem is long)
+            // Post: Mimic Polaroid logic (Reduced size + Contain)
             const margin = 50 * scale;
-            const contentWidth = width - margin * 2;
+            const topMargin = 50 * scale;
             
-            // Draw Image (Top 50%)
-            const imgTargetHeight = height * 0.5;
-            const aspect = img.naturalWidth / img.naturalHeight;
+            // Image Box Size: Use 45% of height, similar to Polaroid
+            const maxImgSize = height * 0.45;
+            const imgSize = maxImgSize; // Square container
             
-            let drawW = width;
-            let drawH = width / aspect;
-            let drawX = 0;
-            let drawY = 0;
-            
-            if (drawH < imgTargetHeight) {
-                drawH = imgTargetHeight;
-                drawW = drawH * aspect;
-                drawX = (width - drawW) / 2;
-            } else {
-                drawY = (imgTargetHeight - drawH) / 2;
-            }
+            // Center the image box
+            const imgX = (width - imgSize) / 2;
+            const imgY = topMargin;
 
+            // Draw Image (Contain logic)
             ctx.save();
             ctx.beginPath();
-            ctx.rect(0,0, width, imgTargetHeight);
+            ctx.rect(imgX, imgY, imgSize, imgSize);
             ctx.clip();
+            
+            // Fill image background with white for clean look in containment
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(imgX, imgY, imgSize, imgSize);
+
+            const aspect = img.naturalWidth / img.naturalHeight;
+            let drawW = imgSize;
+            let drawH = imgSize / aspect;
+            let drawX = imgX;
+            let drawY = imgY + (imgSize - drawH) / 2;
+            
+            if (aspect < 1) { // Portrait
+                drawH = imgSize;
+                drawW = imgSize * aspect;
+                drawY = imgY;
+                drawX = imgX + (imgSize - drawW) / 2;
+            }
             ctx.drawImage(img, drawX, drawY, drawW, drawH);
             ctx.restore();
 
-            // Text Background
-            ctx.fillStyle = '#F0FDFA';
-            ctx.fillRect(0, imgTargetHeight, width, height - imgTargetHeight);
+            // Border effect (Polaroid-ish)
+            ctx.strokeStyle = '#e5e5e5';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(imgX, imgY, imgSize, imgSize);
 
             // Text Logic
             ctx.fillStyle = '#1F2937';
@@ -316,52 +326,59 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             
             // Draw Title
             ctx.font = titleFontStr;
-            const titleY = imgTargetHeight + 80 * scale;
+            const titleY = imgY + imgSize + 80 * scale;
             ctx.fillText(poem.title, width/2, titleY);
             
             // Calculate space for body
             const authorHeight = authorName ? 60 * scale : 0;
-            const bodyStartY = titleY + 20 * scale; // Start slightly below title
-            const maxBodyHeight = height - bodyStartY - margin - authorHeight;
+            const bodyStartY = titleY + 20 * scale;
+            const bottomPadding = margin;
+            const maxBodyHeight = height - bodyStartY - authorHeight - bottomPadding;
+            const contentWidth = width - margin * 2;
 
             // Auto-fit Body
             const { fontSize, lines, lineHeight, totalHeight } = fitTextToArea(poem.poem, contentWidth, maxBodyHeight, baseBodyFontSize);
 
             ctx.font = `${fontSize}px "Times New Roman", serif`;
-            // Center text block vertically in available space if it's short, otherwise start at top
-            const verticalOffset = (maxBodyHeight - totalHeight) / 2;
-            const actualStartY = bodyStartY + Math.max(0, verticalOffset);
-            
-            const textEndY = drawLines(ctx, lines, width/2, actualStartY + lineHeight, lineHeight);
+            const textEndY = drawLines(ctx, lines, width/2, bodyStartY + lineHeight, lineHeight);
 
             if (authorName) {
                 ctx.font = creditFontStr;
-                ctx.textAlign = 'center'; // Center author in Square mode usually looks better, or right
-                ctx.fillText(`- ${authorName}`, width/2, height - margin/2);
+                // Dynamic author positioning
+                const authorY = textEndY + 50 * scale;
+                ctx.fillText(`- ${authorName}`, width/2, authorY);
             }
 
         } else {
             // Polaroid
             const margin = 60 * scale;
             const topMargin = 60 * scale;
-            const imgSize = width - margin * 2; // Square image area
             
+            // Calculate Image Size: Limit it to 45% of height to ensure text fits
+            const maxImgSize = height * 0.45;
+            const imgSize = Math.min(width - margin * 2, maxImgSize);
+            
+            // Center the image horizontally (because it might be smaller than full width now)
+            const imgX = (width - imgSize) / 2;
+            const imgY = topMargin;
+
             // Draw Image
             ctx.save();
             ctx.beginPath();
-            ctx.rect(margin, topMargin, imgSize, imgSize);
+            ctx.rect(imgX, imgY, imgSize, imgSize);
             ctx.clip();
             
             const aspect = img.naturalWidth / img.naturalHeight;
             let drawW = imgSize;
             let drawH = imgSize / aspect;
-            let drawX = margin;
-            let drawY = topMargin + (imgSize - drawH) / 2;
+            let drawX = imgX;
+            let drawY = imgY + (imgSize - drawH) / 2;
+            
             if (aspect < 1) {
                 drawH = imgSize;
                 drawW = imgSize * aspect;
-                drawY = topMargin;
-                drawX = margin + (imgSize - drawW) / 2;
+                drawY = imgY;
+                drawX = imgX + (imgSize - drawW) / 2;
             }
             ctx.drawImage(img, drawX, drawY, drawW, drawH);
             ctx.restore();
@@ -369,7 +386,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             // Border Inner Shadow effect
             ctx.strokeStyle = '#e5e5e5';
             ctx.lineWidth = 2;
-            ctx.strokeRect(margin, topMargin, imgSize, imgSize);
+            ctx.strokeRect(imgX, imgY, imgSize, imgSize);
 
             // Text Logic
             ctx.fillStyle = '#1F2937';
@@ -377,7 +394,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             
             // Draw Title
             ctx.font = titleFontStr;
-            const titleY = topMargin + imgSize + 80 * scale; // Space below image
+            const titleY = imgY + imgSize + 80 * scale; // Space below image
             ctx.fillText(poem.title, width/2, titleY);
             
             // Calculate space for body
@@ -401,16 +418,13 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             
             ctx.font = `${fontSize}px "Courier New", monospace`;
             
-            // If text is short, center it vertically in the whitespace, otherwise top align
-            // (Optional: Polaroids usually look good top-aligned or centered. Let's center block if plenty of space)
-            // const verticalBlockOffset = Math.max(0, (maxBodyHeight - totalHeight) / 2);
-            const actualStartY = bodyStartY; // + verticalBlockOffset;
+            const actualStartY = bodyStartY; 
 
             const textEndY = drawLines(ctx, lines, width/2, actualStartY + lineHeight, lineHeight);
 
              if (authorName) {
                 ctx.font = creditFontStr;
-                // Place author dynamically below text, but ensure it doesn't fall off if calculation was tight
+                // Place author dynamically below text
                 const authorY = textEndY + 40 * scale; 
                 ctx.fillText(`- ${authorName}`, width/2, authorY);
             }
@@ -581,12 +595,14 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
 
                 {selectedTemplate === ShareTemplate.Square && (
                     <>
-                         <div className="h-[50%] w-full overflow-hidden">
-                            {image && <img src={image} className="w-full h-full object-cover" alt="Preview" />}
+                         <div className="h-[45%] w-full flex items-center justify-center p-4">
+                            <div className="aspect-square h-full max-w-full bg-white border border-gray-200 shadow-sm overflow-hidden relative flex items-center justify-center">
+                                {image && <img src={image} className="max-w-full max-h-full object-contain" alt="Preview" />}
+                            </div>
                         </div>
-                        <div className="h-[50%] w-full bg-surface p-6 flex flex-col items-center justify-center text-center">
+                        <div className="flex-1 w-full bg-surface px-6 pb-6 flex flex-col items-center text-center overflow-hidden">
                              <h2 className="text-xl font-bold text-text-dark font-serif mb-2">{poem?.title}</h2>
-                             <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed line-clamp-[8] flex-1 overflow-hidden">
+                             <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed flex-1 overflow-hidden">
                                 {displayedPoem}
                             </p>
                              {authorName && <p className="text-text-light italic text-xs mt-2">- {authorName}</p>}
@@ -596,8 +612,10 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
 
                 {selectedTemplate === ShareTemplate.Polaroid && (
                     <>
-                         <div className="aspect-square w-full bg-gray-100 border border-gray-200 overflow-hidden mb-6">
-                             {image && <img src={image} className="w-full h-full object-cover" alt="Preview" />}
+                         <div className="h-[45%] w-full flex items-center justify-center mb-6">
+                            <div className="aspect-square h-full bg-gray-100 border border-gray-200 overflow-hidden">
+                                {image && <img src={image} className="w-full h-full object-cover" alt="Preview" />}
+                            </div>
                          </div>
                          <div className="flex-1 flex flex-col items-center text-center px-4 overflow-hidden">
                              <h2 className="text-2xl font-bold text-text-dark font-serif mb-2">{poem?.title}</h2>
