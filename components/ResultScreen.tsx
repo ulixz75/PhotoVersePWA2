@@ -95,7 +95,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
   const loadImage = (url: string): Promise<HTMLImageElement> =>
     new Promise((resolve, reject) => {
       const img = new Image();
-      img.crossOrigin = "Anonymous";
+      // Removed crossOrigin="Anonymous" as it can cause issues with Data URIs
       img.onload = () => resolve(img);
       img.onerror = (err) => reject(err);
       img.src = url;
@@ -449,6 +449,10 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
     setIsDownloading(true);
 
     try {
+      if (!window.jspdf) {
+        throw new Error("PDF Library not loaded");
+      }
+      
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -460,6 +464,11 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
       doc.text("Photo Verse", pageWidth / 2, 25, { align: "center" });
       
       const img = await loadImage(image);
+      
+      // Detect Format
+      let imgFormat = 'JPEG';
+      if (image.includes('image/png')) imgFormat = 'PNG';
+      
       const availableWidth = pageWidth - margin * 2;
       const aspectRatio = img.naturalWidth / img.naturalHeight;
       let imgWidth = availableWidth;
@@ -473,7 +482,8 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
       const imgX = (pageWidth - imgWidth) / 2;
       const imgY = 35;
 
-      doc.addImage(img, 'JPEG', imgX, imgY, imgWidth, imgHeight);
+      // Using explicit format helps jsPDF handle compression correctly
+      doc.addImage(img, imgFormat, imgX, imgY, imgWidth, imgHeight);
       
       const textStartY = imgY + imgHeight + 15;
 
@@ -497,7 +507,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
       
     } catch (error) {
       console.error("Error generating PDF:", error);
-      alert("No se pudo generar el PDF.");
+      alert(`No se pudo generar el PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`);
     } finally {
       setIsDownloading(false);
     }

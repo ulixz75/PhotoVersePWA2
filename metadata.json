@@ -1,5 +1,5 @@
 {
-  "name": "FotoVerso App PWA",
+  "name": "FotoVerso",
   "description": "Una aplicación web que genera poemas personalizados a partir de fotografías usando inteligencia artificial, con un diseño suave y creativo de Claymorphism.",
   "requestFramePermissions": [
     "camera"
