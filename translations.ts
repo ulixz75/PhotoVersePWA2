@@ -46,7 +46,6 @@ export const t = {
   share: { es: 'Texto', en: 'Text' },
   copy: { es: 'Copiar', en: 'Copy' },
   copied: { es: '¡Copiado!', en: 'Copied!' },
-  downloadPdf: { es: 'Guardar PDF', en: 'Save PDF' },
   downloadImage: { es: 'Guardar Imagen', en: 'Save Image' },
   generating: { es: 'Procesando...', en: 'Processing...' },
   createAnother: { es: 'Crear Otro', en: 'Create Another' },

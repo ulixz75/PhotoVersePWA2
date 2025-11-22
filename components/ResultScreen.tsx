@@ -1,15 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ClayButton from './ClayButton';
-import { Copy, RefreshCw, Download, Share2, Smartphone, Square, Image as ImageIcon, FileText } from 'lucide-react';
+import { Copy, RefreshCw, Download, Share2, Smartphone, Square, Image as ImageIcon, ChevronDown } from 'lucide-react';
 import { Poem, Language, ShareTemplate } from '../types';
 import { t } from '../translations';
-
-
-declare global {
-  interface Window {
-    jspdf: any;
-  }
-}
 
 interface ResultScreenProps {
   poem: Poem | null;
@@ -56,8 +49,24 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
   const [isDownloading, setIsDownloading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<ShareTemplate>(ShareTemplate.Story);
   
+  // Refs for auto-scrolling
+  const mobileTextRef = useRef<HTMLDivElement>(null);
+  const desktopTextRef = useRef<HTMLDivElement>(null); // Changed to div for the wrapper logic
+
   const displayedPoem = useTypewriter(poem?.poem || t.poemError[language], 30);
   const isFinishedTyping = poem?.poem === displayedPoem;
+
+  // Auto-scroll effect
+  useEffect(() => {
+    // Scroll mobile view
+    if (mobileTextRef.current) {
+        mobileTextRef.current.scrollTop = mobileTextRef.current.scrollHeight;
+    }
+    // Scroll desktop preview
+    if (desktopTextRef.current) {
+        desktopTextRef.current.scrollTop = desktopTextRef.current.scrollHeight;
+    }
+  }, [displayedPoem]);
 
   const getFullPoemText = () => {
       if (!poem) return '';
@@ -95,7 +104,6 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
   const loadImage = (url: string): Promise<HTMLImageElement> =>
     new Promise((resolve, reject) => {
       const img = new Image();
-      // Removed crossOrigin="Anonymous" as it can cause issues with Data URIs
       img.onload = () => resolve(img);
       img.onerror = (err) => reject(err);
       img.src = url;
@@ -223,7 +231,6 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             let drawW = width;
             let drawH = width / aspect;
             let drawX = 0;
-            // let drawY = 0;
             if (drawH < imgHeight) {
                 drawH = imgHeight;
                 drawW = drawH * aspect;
@@ -281,22 +288,17 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             // Post: Mimic Polaroid logic (Reduced size + Contain)
             const margin = 50 * scale;
             const topMargin = 50 * scale;
-            
-            // Image Box Size: Use 45% of height, similar to Polaroid
             const maxImgSize = height * 0.45;
-            const imgSize = maxImgSize; // Square container
+            const imgSize = maxImgSize;
             
-            // Center the image box
             const imgX = (width - imgSize) / 2;
             const imgY = topMargin;
 
-            // Draw Image (Contain logic)
+            // Draw Image
             ctx.save();
             ctx.beginPath();
             ctx.rect(imgX, imgY, imgSize, imgSize);
             ctx.clip();
-            
-            // Fill image background with white for clean look in containment
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(imgX, imgY, imgSize, imgSize);
 
@@ -315,36 +317,31 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             ctx.drawImage(img, drawX, drawY, drawW, drawH);
             ctx.restore();
 
-            // Border effect (Polaroid-ish)
             ctx.strokeStyle = '#e5e5e5';
             ctx.lineWidth = 2;
             ctx.strokeRect(imgX, imgY, imgSize, imgSize);
 
-            // Text Logic
+            // Text
             ctx.fillStyle = '#1F2937';
             ctx.textAlign = 'center';
             
-            // Draw Title
             ctx.font = titleFontStr;
             const titleY = imgY + imgSize + 80 * scale;
             ctx.fillText(poem.title, width/2, titleY);
             
-            // Calculate space for body
             const authorHeight = authorName ? 60 * scale : 0;
             const bodyStartY = titleY + 20 * scale;
             const bottomPadding = margin;
             const maxBodyHeight = height - bodyStartY - authorHeight - bottomPadding;
             const contentWidth = width - margin * 2;
 
-            // Auto-fit Body
-            const { fontSize, lines, lineHeight, totalHeight } = fitTextToArea(poem.poem, contentWidth, maxBodyHeight, baseBodyFontSize);
+            const { fontSize, lines, lineHeight } = fitTextToArea(poem.poem, contentWidth, maxBodyHeight, baseBodyFontSize);
 
             ctx.font = `${fontSize}px "Times New Roman", serif`;
             const textEndY = drawLines(ctx, lines, width/2, bodyStartY + lineHeight, lineHeight);
 
             if (authorName) {
                 ctx.font = creditFontStr;
-                // Dynamic author positioning
                 const authorY = textEndY + 50 * scale;
                 ctx.fillText(`- ${authorName}`, width/2, authorY);
             }
@@ -353,16 +350,11 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             // Polaroid
             const margin = 60 * scale;
             const topMargin = 60 * scale;
-            
-            // Calculate Image Size: Limit it to 45% of height to ensure text fits
             const maxImgSize = height * 0.45;
             const imgSize = Math.min(width - margin * 2, maxImgSize);
-            
-            // Center the image horizontally (because it might be smaller than full width now)
             const imgX = (width - imgSize) / 2;
             const imgY = topMargin;
 
-            // Draw Image
             ctx.save();
             ctx.beginPath();
             ctx.rect(imgX, imgY, imgSize, imgSize);
@@ -383,32 +375,24 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             ctx.drawImage(img, drawX, drawY, drawW, drawH);
             ctx.restore();
 
-            // Border Inner Shadow effect
             ctx.strokeStyle = '#e5e5e5';
             ctx.lineWidth = 2;
             ctx.strokeRect(imgX, imgY, imgSize, imgSize);
 
-            // Text Logic
             ctx.fillStyle = '#1F2937';
             ctx.textAlign = 'center';
             
-            // Draw Title
             ctx.font = titleFontStr;
-            const titleY = imgY + imgSize + 80 * scale; // Space below image
+            const titleY = imgY + imgSize + 80 * scale;
             ctx.fillText(poem.title, width/2, titleY);
             
-            // Calculate space for body
             const authorHeight = authorName ? 50 * scale : 0;
             const bottomPadding = 40 * scale;
             const bodyStartY = titleY + 20 * scale;
-            
-            // Available height for the poem body
             const maxBodyHeight = height - bodyStartY - authorHeight - bottomPadding;
             const contentWidth = width - margin * 2;
 
-            // Auto-fit Body
-            // Use Courier New for Polaroid feel
-            const { fontSize, lines, lineHeight, totalHeight } = fitTextToArea(
+            const { fontSize, lines, lineHeight } = fitTextToArea(
                 poem.poem, 
                 contentWidth, 
                 maxBodyHeight, 
@@ -417,20 +401,15 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
             );
             
             ctx.font = `${fontSize}px "Courier New", monospace`;
-            
-            const actualStartY = bodyStartY; 
-
-            const textEndY = drawLines(ctx, lines, width/2, actualStartY + lineHeight, lineHeight);
+            const textEndY = drawLines(ctx, lines, width/2, bodyStartY + lineHeight, lineHeight);
 
              if (authorName) {
                 ctx.font = creditFontStr;
-                // Place author dynamically below text
                 const authorY = textEndY + 40 * scale; 
                 ctx.fillText(`- ${authorName}`, width/2, authorY);
             }
         }
 
-        // Download
         const dataUrl = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.download = `photoverse-${poem.title.replace(/\s+/g, '-').toLowerCase()}.png`;
@@ -444,78 +423,26 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
     }
   };
 
-  const handleDownloadPdf = async () => {
-    if (!poem || !image) return;
-    setIsDownloading(true);
-
-    try {
-      if (!window.jspdf) {
-        throw new Error("PDF Library not loaded");
-      }
-      
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 20;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(22);
-      doc.text("Photo Verse", pageWidth / 2, 25, { align: "center" });
-      
-      const img = await loadImage(image);
-      
-      // Detect Format
-      let imgFormat = 'JPEG';
-      if (image.includes('image/png')) imgFormat = 'PNG';
-      
-      const availableWidth = pageWidth - margin * 2;
-      const aspectRatio = img.naturalWidth / img.naturalHeight;
-      let imgWidth = availableWidth;
-      let imgHeight = imgWidth / aspectRatio;
-
-      if (imgHeight > pageHeight * 0.45) {
-        imgHeight = pageHeight * 0.45;
-        imgWidth = imgHeight * aspectRatio;
-      }
-
-      const imgX = (pageWidth - imgWidth) / 2;
-      const imgY = 35;
-
-      // Using explicit format helps jsPDF handle compression correctly
-      doc.addImage(img, imgFormat, imgX, imgY, imgWidth, imgHeight);
-      
-      const textStartY = imgY + imgHeight + 15;
-
-      // Title
-      doc.setFont("times", "bold");
-      doc.setFontSize(18);
-      doc.text(poem.title, pageWidth / 2, textStartY, { align: "center" });
-      
-      // Poem
-      doc.setFont("times", "normal");
-      doc.setFontSize(12);
-      const splitPoem = doc.splitTextToSize(poem.poem, availableWidth);
-      doc.text(splitPoem, pageWidth / 2, textStartY + 10, { align: "center", lineHeightFactor: 1.5 });
-      
-      if (authorName) {
-        doc.setFont("times", "italic");
-        doc.text(`- ${authorName}`, pageWidth - margin, textStartY + 10 + (splitPoem.length * 6) + 10, { align: "right" });
-      }
-
-      doc.save(`${poem.title.replace(/\s/g, '_')}-photo-verse.pdf`);
-      
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      alert(`No se pudo generar el PDF: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-    } finally {
-      setIsDownloading(false);
-    }
+  // Custom scrollbar hider styles
+  const scrollbarHideStyles = {
+    scrollbarWidth: 'none' as const,
+    msOverflowStyle: 'none' as const,
   };
 
+  // Helper to render scroll indicator overlay
+  const ScrollIndicator = () => (
+    <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-surface via-surface/80 to-transparent pointer-events-none flex flex-col items-center justify-end pb-2 z-20">
+        <ChevronDown className="text-main-teal animate-bounce opacity-70" size={24} />
+    </div>
+  );
 
   return (
     <div className="w-full h-full flex flex-col bg-main-teal overflow-hidden">
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+      `}</style>
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* Left Panel: Controls & Info */}
           <div className="w-full md:w-1/3 lg:w-1/4 p-6 bg-main-teal border-b md:border-b-0 md:border-r border-shadow-dark flex flex-col z-10 shadow-xl">
@@ -548,10 +475,19 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto mb-6 md:hidden">
+            <div className="flex-1 relative mb-6 md:hidden rounded-xl bg-main-teal/50 shadow-inner overflow-hidden">
                  {/* Mobile Text View */}
-                 <div className="whitespace-pre-wrap text-surface font-sans text-sm leading-relaxed">
-                    {displayedPoem}
+                 <div 
+                    className="absolute inset-0 overflow-y-auto p-4 no-scrollbar"
+                    ref={mobileTextRef}
+                 >
+                    <div className="whitespace-pre-wrap text-surface font-sans text-sm leading-relaxed pb-8">
+                        {displayedPoem}
+                    </div>
+                 </div>
+                 {/* Mobile Indicator */}
+                 <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-main-teal to-transparent pointer-events-none flex items-end justify-center pb-1">
+                    <ChevronDown className="text-surface animate-bounce opacity-50" size={16} />
                  </div>
             </div>
 
@@ -560,14 +496,9 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
                     <Download className="mr-2" size={20} /> {isDownloading ? t.generating[language] : t.downloadImage[language]}
                  </ClayButton>
                  
-                 <div className="flex gap-2">
-                    <ClayButton onClick={handleShareText} color="secondary" disabled={!isFinishedTyping} fullWidth className="text-sm px-2">
-                        <Share2 className="mr-1" size={18} /> {t.share[language]}
-                    </ClayButton>
-                    <ClayButton onClick={handleDownloadPdf} color="secondary" disabled={!isFinishedTyping} fullWidth className="text-sm px-2">
-                        <FileText className="mr-1" size={18} /> PDF
-                    </ClayButton>
-                 </div>
+                 <ClayButton onClick={handleShareText} color="secondary" disabled={!isFinishedTyping} fullWidth className="text-sm px-2">
+                    <Share2 className="mr-1" size={18} /> {t.share[language]}
+                 </ClayButton>
                  
                  <ClayButton onClick={onReset} fullWidth className="mt-2">
                     <RefreshCw className="mr-2" size={20} /> {t.createAnother[language]}
@@ -589,50 +520,86 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
              >
                 {selectedTemplate === ShareTemplate.Story && (
                     <>
-                        <div className="h-[55%] w-full relative">
+                        <div className="h-[55%] w-full relative flex-none">
                             {image && <img src={image} className="w-full h-full object-cover" alt="Preview" />}
                             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-main-teal"></div>
                         </div>
-                        <div className="flex-1 bg-surface rounded-t-[3rem] -mt-12 p-8 relative z-10 flex flex-col items-center text-center shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
-                            <h2 className="text-2xl font-bold text-text-dark font-serif mb-4">{poem?.title}</h2>
-                            <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed overflow-y-auto no-scrollbar flex-1">
-                                {displayedPoem}
-                            </p>
-                            {authorName && <p className="text-text-light italic text-xs mt-4">- {authorName}</p>}
+                        <div className="flex-1 bg-surface rounded-t-[3rem] -mt-12 pt-8 px-8 pb-4 relative z-10 flex flex-col items-center text-center shadow-[0_-10px_40px_rgba(0,0,0,0.1)] min-h-0">
+                            <h2 className="text-2xl font-bold text-text-dark font-serif mb-4 flex-none">{poem?.title}</h2>
+                            
+                            {/* Story Scrollable Area */}
+                            <div className="flex-1 w-full relative min-h-0">
+                                <div 
+                                    ref={desktopTextRef}
+                                    className="absolute inset-0 overflow-y-auto no-scrollbar pb-8"
+                                    style={scrollbarHideStyles}
+                                >
+                                     <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed">
+                                        {displayedPoem}
+                                    </p>
+                                </div>
+                                <ScrollIndicator />
+                            </div>
+                            
+                            {authorName && <p className="text-text-light italic text-xs mt-4 flex-none">- {authorName}</p>}
                         </div>
                     </>
                 )}
 
                 {selectedTemplate === ShareTemplate.Square && (
                     <>
-                         <div className="h-[45%] w-full flex items-center justify-center p-4">
+                         <div className="h-[45%] w-full flex items-center justify-center p-4 flex-none">
                             <div className="aspect-square h-full max-w-full bg-white border border-gray-200 shadow-sm overflow-hidden relative flex items-center justify-center">
                                 {image && <img src={image} className="max-w-full max-h-full object-contain" alt="Preview" />}
                             </div>
                         </div>
-                        <div className="flex-1 w-full bg-surface px-6 pb-6 flex flex-col items-center text-center overflow-hidden">
-                             <h2 className="text-xl font-bold text-text-dark font-serif mb-2">{poem?.title}</h2>
-                             <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed flex-1 overflow-hidden">
-                                {displayedPoem}
-                            </p>
-                             {authorName && <p className="text-text-light italic text-xs mt-2">- {authorName}</p>}
+                        <div className="flex-1 w-full bg-surface px-6 pb-6 flex flex-col items-center text-center overflow-hidden min-h-0">
+                             <h2 className="text-xl font-bold text-text-dark font-serif mb-2 flex-none">{poem?.title}</h2>
+                             
+                             {/* Square Scrollable Area */}
+                             <div className="flex-1 w-full relative min-h-0">
+                                <div 
+                                    ref={desktopTextRef}
+                                    className="absolute inset-0 overflow-y-auto no-scrollbar pb-8"
+                                    style={scrollbarHideStyles}
+                                >
+                                    <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed">
+                                        {displayedPoem}
+                                    </p>
+                                </div>
+                                <ScrollIndicator />
+                             </div>
+
+                             {authorName && <p className="text-text-light italic text-xs mt-2 flex-none">- {authorName}</p>}
                         </div>
                     </>
                 )}
 
                 {selectedTemplate === ShareTemplate.Polaroid && (
                     <>
-                         <div className="h-[45%] w-full flex items-center justify-center mb-6">
+                         <div className="h-[45%] w-full flex items-center justify-center mb-6 flex-none">
                             <div className="aspect-square h-full bg-gray-100 border border-gray-200 overflow-hidden">
                                 {image && <img src={image} className="w-full h-full object-cover" alt="Preview" />}
                             </div>
                          </div>
-                         <div className="flex-1 flex flex-col items-center text-center px-4 overflow-hidden">
-                             <h2 className="text-2xl font-bold text-text-dark font-serif mb-2">{poem?.title}</h2>
-                             <p className="text-text-dark whitespace-pre-wrap font-mono text-xs leading-relaxed flex-1 overflow-hidden">
-                                {displayedPoem}
-                            </p>
-                             {authorName && <p className="text-text-light italic text-xs mt-2">- {authorName}</p>}
+                         <div className="flex-1 w-full flex flex-col items-center text-center px-4 overflow-hidden min-h-0">
+                             <h2 className="text-2xl font-bold text-text-dark font-serif mb-2 flex-none">{poem?.title}</h2>
+                             
+                             {/* Polaroid Scrollable Area */}
+                             <div className="flex-1 w-full relative min-h-0">
+                                <div 
+                                    ref={desktopTextRef}
+                                    className="absolute inset-0 overflow-y-auto no-scrollbar pb-8"
+                                    style={scrollbarHideStyles}
+                                >
+                                    <p className="text-text-dark whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                                        {displayedPoem}
+                                    </p>
+                                </div>
+                                <ScrollIndicator />
+                             </div>
+
+                             {authorName && <p className="text-text-light italic text-xs mt-2 flex-none">- {authorName}</p>}
                          </div>
                     </>
                 )}
