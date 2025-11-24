@@ -1,4 +1,4 @@
-const CACHE_NAME = 'photoverse-cache-v5'; // Incrementado para forzar actualización
+const CACHE_NAME = 'photoverse-cache-v6'; // Incrementado para forzar actualización
 const URLS_TO_CACHE = [
   // App Shell
   '/',
@@ -43,6 +43,7 @@ const URLS_TO_CACHE = [
 ];
 
 // 1. INSTALACIÓN: Cachear recursos
+// 1. INSTALACIÓN: Cachear recursos
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -50,9 +51,8 @@ self.addEventListener('install', event => {
         console.log('Opened cache');
         return cache.addAll(URLS_TO_CACHE);
       })
-      // NOTA: Ya no usamos skipWaiting() aquí automáticamente para evitar
-      // romper la app mientras el usuario la usa. Lo haremos vía mensaje.
   );
+  // NO llamar a skipWaiting() aquí - esperamos el mensaje del cliente
 });
 
 // 2. ACTIVACIÓN: Limpiar cachés viejas
