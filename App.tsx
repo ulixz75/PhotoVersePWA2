@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css'; // Asegúrate de que esta ruta sea correcta
 import { Screen, PoemStyle, PoemMood, Poem, Language } from './types';
@@ -8,6 +7,7 @@ import ProcessingScreen from './components/ProcessingScreen';
 import ResultScreen from './components/ResultScreen';
 import GalleryScreen from './components/GalleryScreen';
 import InstallPromptModal from './components/InstallPromptModal';
+import UpdateToast from './components/UpdateToast';
 import { generatePoemFromImage } from './services/geminiService';
 
 // Declara la API de comunicación con el Servicio de Delegación
@@ -36,6 +36,10 @@ const App: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
 
+  // Update SW State
+  const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
+  const [showUpdateToast, setShowUpdateToast] = useState(false);
+
   useEffect(() => {
     // Splash screen timer
     if (screen === Screen.SPLASH) {
@@ -46,7 +50,57 @@ const App: React.FC = () => {
     }
   }, [screen]);
 
-  // Logic to check if we should show the install modal
+  // --- SERVICE WORKER REGISTRATION & UPDATES ---
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js')
+            .then((registration) => {
+                console.log('SW registered with scope:', registration.scope);
+
+                // Check if there is already a waiting worker (update downloaded but not activated)
+                if (registration.waiting) {
+                    setWaitingWorker(registration.waiting);
+                    setShowUpdateToast(true);
+                }
+
+                // Detect when a new update is found
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    if (newWorker) {
+                        newWorker.addEventListener('statechange', () => {
+                            // Has content.waiting changed?
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // New content is available; please refresh.
+                                setWaitingWorker(newWorker);
+                                setShowUpdateToast(true);
+                            }
+                        });
+                    }
+                });
+            })
+            .catch((error) => {
+                console.error('SW registration failed:', error);
+            });
+
+        // Ensure page reloads when the new SW takes control
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!refreshing) {
+                window.location.reload();
+                refreshing = true;
+            }
+        });
+    }
+  }, []);
+
+  const handleUpdateApp = () => {
+    if (waitingWorker) {
+        waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+        setShowUpdateToast(false);
+    }
+  };
+
+  // --- INSTALL PROMPT LOGIC ---
   const checkInstallEligibility = useCallback(() => {
       // 1. Check if already installed (Standalone mode)
       const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
@@ -78,25 +132,19 @@ const App: React.FC = () => {
       }
   }, [deferredPrompt]);
 
-  // Trigger check IMMEDIATELY when deferredPrompt is ready or component mounts (for iOS)
-  // Removed dependency on Screen.UPLOAD to allow modal over Splash Screen
   useEffect(() => {
       checkInstallEligibility();
   }, [deferredPrompt, checkInstallEligibility]);
 
   useEffect(() => {
-    // Listen for the 'beforeinstallprompt' event (Android/Desktop)
     const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault(); // Prevent default mini-infobar
+      e.preventDefault(); 
       setDeferredPrompt(e);
       console.log("beforeinstallprompt fired");
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
 
@@ -108,21 +156,19 @@ const App: React.FC = () => {
 
     // Handle return from ad using redirect method
     if (urlParams.get('adRewarded') === 'true') {
-      console.log('Volviendo del anuncio recompensado'); // Log del script del usuario
+      console.log('Volviendo del anuncio recompensado');
       const savedState = sessionStorage.getItem('poemState');
       if (savedState) {
         try {
           const { savedImageData, savedStyle, savedMood, savedAuthorName, savedLanguage } = JSON.parse(savedState);
           
           if (savedImageData && savedStyle && savedMood) {
-             // Restore state
              setImageData(savedImageData);
              setSelectedStyle(savedStyle);
              setSelectedMood(savedMood);
              setAuthorName(savedAuthorName);
              setLanguage(savedLanguage || 'es');
              
-             // Trigger generation process directly
              setScreen(Screen.PROCESSING);
              setError(null);
              generatePoemFromImage(savedImageData.base64, savedImageData.mimeType, savedStyle, savedMood, savedLanguage || 'es')
@@ -157,7 +203,7 @@ const App: React.FC = () => {
         setScreen(Screen.UPLOAD);
       }
     }
-  }, []); // Run only once on mount
+  }, []); 
 
   const executePoemGeneration = useCallback(async () => {
     if (!imageData || !selectedStyle || !selectedMood) {
@@ -189,16 +235,11 @@ const App: React.FC = () => {
       sessionStorage.setItem('poemState', JSON.stringify(stateToSave));
       
       const appBaseUrl = 'https://photoverse-app-265715129860.us-west1.run.app';
-      // URL a la que volveremos después del anuncio (de acuerdo al script del usuario)
       const returnUrlRaw = `${appBaseUrl}/create?adRewarded=true`;
       const returnUrl = encodeURIComponent(returnUrlRaw);
-      
-      // URL callback que la TWA interceptará para mostrar el anuncio
       const callback = `${appBaseUrl}/.well-known/twa-callbacks/showRewardAd?returnUrl=${returnUrl}`;
       
-      console.log('Navegando a:', callback); // para debug
-      
-      // Navegar a la URL callback (esto será interceptado por la TWA)
+      console.log('Navegando a:', callback);
       window.location.href = callback;
     } else {
       console.log("No estamos en TWA. Generando poema directamente.");
@@ -216,7 +257,6 @@ const App: React.FC = () => {
     setAuthorName('');
   };
 
-  // --- Install Handlers ---
   const handleInstallClick = async () => {
       if (deferredPrompt) {
           deferredPrompt.prompt();
@@ -276,7 +316,6 @@ const App: React.FC = () => {
         {renderScreen()}
       </div>
       
-      {/* Install Modal MOVED OUTSIDE the main container to avoid CSS clipping and transform issues */}
       <InstallPromptModal 
           isOpen={showInstallModal}
           onClose={handleInstallModalClose}
@@ -284,6 +323,10 @@ const App: React.FC = () => {
           isIOS={isIOS}
           language={language}
       />
+
+      {showUpdateToast && (
+          <UpdateToast onUpdate={handleUpdateApp} language={language} />
+      )}
     </div>
   );
 };
