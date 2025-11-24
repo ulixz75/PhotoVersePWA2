@@ -7,6 +7,43 @@ const MODEL_NAME = "gemini-2.5-flash";
 // Asumimos que process.env.API_KEY está preconfigurado en el entorno de ejecución.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+// Función auxiliar para llamar al backend de Vercel (Anthropic)
+const callAnthropicFallback = async (
+  base64Image: string, 
+  mimeType: string, 
+  prompt: string
+): Promise<Poem> => {
+  try {
+    const response = await fetch('/api/fallback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: base64Image,
+        mimeType: mimeType,
+        prompt: prompt
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Fallback Service Error: ${errText}`);
+    }
+
+    const data = await response.json();
+    let jsonString = data.text;
+
+    // Limpieza básica por si el modelo devuelve bloques de markdown
+    jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error("Fallback failed:", error);
+    throw new Error("El servicio de respaldo también falló. Por favor intenta más tarde.");
+  }
+};
+
 export const generatePoemFromImage = async (
   base64Image: string,
   mimeType: string,
@@ -34,6 +71,8 @@ export const generatePoemFromImage = async (
   };
 
   try {
+    // INTENTO 1: GEMINI (Cliente directo)
+    console.log("Intentando generar con Gemini...");
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: { parts: [imagePart, textPart] },
@@ -60,13 +99,23 @@ export const generatePoemFromImage = async (
 
   } catch (error) {
     console.error("Error calling Gemini API:", error);
-    if (error instanceof SyntaxError) {
-        throw new Error("La respuesta de la API no es un JSON válido.");
+    
+    // Detectar errores recuperables (Quota, Overloaded, Service Unavailable)
+    // O simplemente cualquier error para asegurar la experiencia de usuario
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Si es un error de sintaxis JSON de Gemini, o un error de red/cuota, probamos el fallback
+    console.warn("Gemini falló. Activando protocolo de respaldo (Anthropic)...");
+    
+    try {
+      // INTENTO 2: ANTHROPIC (Vía Vercel Function)
+      return await callAnthropicFallback(base64Image, mimeType, prompt);
+    } catch (fallbackError) {
+        // Si ambos fallan, lanzamos el error original o uno genérico
+        if (error instanceof SyntaxError) {
+            throw new Error("La respuesta de la IA no fue válida.");
+        }
+        throw new Error("No se pudo generar el poema con ninguno de los servicios disponibles.");
     }
-    // Si el error viene de la API (ej: clave inválida), lo pasamos.
-    if (error instanceof Error) {
-        throw new Error(`Error de la API: ${error.message}`);
-    }
-    throw new Error("No se pudo generar el poema. Inténtalo de nuevo más tarde.");
   }
 };
