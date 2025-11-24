@@ -1,4 +1,4 @@
-const CACHE_NAME = 'photoverse-cache-v4'; // Bump version to ensure update
+const CACHE_NAME = 'photoverse-cache-v5'; // Incrementado para forzar actualización
 const URLS_TO_CACHE = [
   // App Shell
   '/',
@@ -29,6 +29,8 @@ const URLS_TO_CACHE = [
   '/components/ResultScreen.tsx',
   '/components/ClayButton.tsx',
   '/components/SelectionCard.tsx',
+  '/components/InstallPromptModal.tsx',
+  '/components/UpdateToast.tsx', // Nuevo componente
 
   // CDN Resources
   'https://cdn.tailwindcss.com',
@@ -40,7 +42,7 @@ const URLS_TO_CACHE = [
   'https://aistudiocdn.com/lucide-react@^0.544.0'
 ];
 
-// Instala el service worker y cachea los recursos principales de la aplicación.
+// 1. INSTALACIÓN: Cachear recursos
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -48,61 +50,12 @@ self.addEventListener('install', event => {
         console.log('Opened cache');
         return cache.addAll(URLS_TO_CACHE);
       })
-      .then(() => self.skipWaiting()) // Force activation
+      // NOTA: Ya no usamos skipWaiting() aquí automáticamente para evitar
+      // romper la app mientras el usuario la usa. Lo haremos vía mensaje.
   );
 });
 
-// Intercepta las peticiones de red y responde con los recursos cacheados si están disponibles.
-self.addEventListener('fetch', event => {
-  // We only want to cache GET requests.
-  if (event.request.method !== 'GET') {
-    return;
-  }
-  
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-
-        // Not in cache - fetch from network
-        return fetch(event.request).then(
-          networkResponse => {
-            // Check if we received a valid response
-            if (!networkResponse || networkResponse.status !== 200) {
-              return networkResponse;
-            }
-            
-            // IMPORTANT: Clone the response. A response is a stream
-            // and because we want the browser to consume the response
-            // as well as the cache consuming the response, we need
-            // to clone it so we have two streams.
-            const responseToCache = networkResponse.clone();
-
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                // We don't cache calls to the Gemini API
-                if (!event.request.url.includes('generativelanguage')) {
-                    cache.put(event.request, responseToCache);
-                }
-              });
-
-            return networkResponse;
-          }
-        ).catch(error => {
-            // This is a simplified offline fallback. 
-            // You might want to return a custom offline page here.
-            console.error('Fetching failed:', error);
-            throw error;
-        });
-      })
-  );
-});
-
-
-// Activa el service worker y elimina cachés antiguas para mantener la aplicación actualizada.
+// 2. ACTIVACIÓN: Limpiar cachés viejas
 self.addEventListener('activate', event => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
@@ -115,6 +68,44 @@ self.addEventListener('activate', event => {
           }
         })
       );
-    }).then(() => self.clients.claim()) // Take control of all pages
+    }).then(() => self.clients.claim()) // Tomar control de inmediato tras activar
   );
+});
+
+// 3. FETCH: Estrategia Cache First, Network Fallback
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        if (response) return response;
+
+        return fetch(event.request).then(
+          networkResponse => {
+            if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+              return networkResponse;
+            }
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME)
+              .then(cache => {
+                if (!event.request.url.includes('generativelanguage')) {
+                    cache.put(event.request, responseToCache);
+                }
+              });
+            return networkResponse;
+          }
+        ).catch(error => {
+            console.error('Fetching failed:', error);
+            // Aquí se podría retornar una página offline personalizada
+        });
+      })
+  );
+});
+
+// 4. MENSAJES: Escuchar orden de actualizar
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
