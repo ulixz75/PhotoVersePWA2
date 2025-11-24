@@ -78,12 +78,11 @@ const App: React.FC = () => {
       }
   }, [deferredPrompt]);
 
-  // Trigger check when entering UPLOAD screen or when deferredPrompt is set while in UPLOAD
+  // Trigger check IMMEDIATELY when deferredPrompt is ready or component mounts (for iOS)
+  // Removed dependency on Screen.UPLOAD to allow modal over Splash Screen
   useEffect(() => {
-      if (screen === Screen.UPLOAD) {
-          checkInstallEligibility();
-      }
-  }, [screen, deferredPrompt, checkInstallEligibility]);
+      checkInstallEligibility();
+  }, [deferredPrompt, checkInstallEligibility]);
 
   useEffect(() => {
     // Listen for the 'beforeinstallprompt' event (Android/Desktop)
