@@ -7,7 +7,6 @@ import ProcessingScreen from './components/ProcessingScreen';
 import ResultScreen from './components/ResultScreen';
 import GalleryScreen from './components/GalleryScreen';
 import InstallPromptModal from './components/InstallPromptModal';
-import UpdateToast from './components/UpdateToast';
 import { generatePoemFromImage } from './services/geminiService';
 
 // Declara la API de comunicación con el Servicio de Delegación
@@ -36,10 +35,6 @@ const App: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
 
-  // Update SW State
-  const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
-  const [showUpdateToast, setShowUpdateToast] = useState(false);
-
   useEffect(() => {
     // Splash screen timer
     if (screen === Screen.SPLASH) {
@@ -50,66 +45,40 @@ const App: React.FC = () => {
     }
   }, [screen]);
 
-  // --- SERVICE WORKER REGISTRATION & UPDATES ---
- useEffect(() => {
-  if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js')
+  // --- SERVICE WORKER REGISTRATION (Auto Update) ---
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      const registerSW = () => {
+        // Use relative path ./service-worker.js to ensure it resolves correctly 
+        // against the current page origin, fixing mismatch errors.
+        navigator.serviceWorker.register('./service-worker.js')
           .then((registration) => {
-              console.log('SW registered with scope:', registration.scope);
-
-              // Check if there is already a waiting worker (update downloaded but not activated)
-              if (registration.waiting) {
-                  setWaitingWorker(registration.waiting);
-                  setShowUpdateToast(true);
-              }
-
-              // Detect when a new update is found
-              registration.addEventListener('updatefound', () => {
-                  const newWorker = registration.installing;
-                  if (newWorker) {
-                      newWorker.addEventListener('statechange', () => {
-                          // Solo mostrar el toast si hay un SW controlador actual
-                          // (es decir, no es la primera instalación)
-                          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                              setWaitingWorker(newWorker);
-                              setShowUpdateToast(true);
-                          }
-                      });
-                  }
-              });
+            console.log('SW registered with scope:', registration.scope);
           })
           .catch((error) => {
-              console.error('SW registration failed:', error);
+            // Ignore specific error if document is unloading or invalid state
+            if (error.message && error.message.includes('invalid state')) return;
+            console.error('SW registration failed:', error);
           });
 
-      // Ensure page reloads when the new SW takes control
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!refreshing) {
-              window.location.reload();
-              refreshing = true;
-          }
-      });
-  }
-}, []);
-
-        // Ensure page reloads when the new SW takes control
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (!refreshing) {
-                window.location.reload();
-                refreshing = true;
-            }
+          if (!refreshing) {
+            window.location.reload();
+            refreshing = true;
+          }
         });
+      };
+
+      // Wait for the page to fully load to avoid "invalid state" errors
+      if (document.readyState === 'complete') {
+        registerSW();
+      } else {
+        window.addEventListener('load', registerSW);
+        return () => window.removeEventListener('load', registerSW);
+      }
     }
   }, []);
-
-  const handleUpdateApp = () => {
-    if (waitingWorker) {
-        waitingWorker.postMessage({ type: 'SKIP_WAITING' });
-        setShowUpdateToast(false);
-    }
-  };
 
   // --- INSTALL PROMPT LOGIC ---
   const checkInstallEligibility = useCallback(() => {
@@ -334,10 +303,6 @@ const App: React.FC = () => {
           isIOS={isIOS}
           language={language}
       />
-
-      {showUpdateToast && (
-          <UpdateToast onUpdate={handleUpdateApp} language={language} />
-      )}
     </div>
   );
 };
