@@ -1,4 +1,4 @@
-const CACHE_NAME = 'photoverse-cache-v6'; // Incrementado para forzar actualización
+const CACHE_NAME = 'photoverse-cache-v5'; // Incrementado para forzar actualización
 const URLS_TO_CACHE = [
   // App Shell
   '/',
