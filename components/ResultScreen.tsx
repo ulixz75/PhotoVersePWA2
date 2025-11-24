@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ClayButton from './ClayButton';
-import { Copy, RefreshCw, Download, Share2, Smartphone, Square, Image as ImageIcon, ChevronDown } from 'lucide-react';
+import { RefreshCw, Download, Share2, Smartphone, Square, Image as ImageIcon, ChevronDown } from 'lucide-react';
 import { Poem, Language, ShareTemplate } from '../types';
 import { t } from '../translations';
 
@@ -45,26 +45,19 @@ const useTypewriter = (text: string | null, speed: number = 50): string => {
 
 
 const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, authorName, language }) => {
-  const [copied, setCopied] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<ShareTemplate>(ShareTemplate.Story);
   
-  // Refs for auto-scrolling
-  const mobileTextRef = useRef<HTMLDivElement>(null);
-  const desktopTextRef = useRef<HTMLDivElement>(null); // Changed to div for the wrapper logic
+  // Single ref for the scrollable text area within the card (used for both mobile and desktop now)
+  const textScrollRef = useRef<HTMLDivElement>(null);
 
   const displayedPoem = useTypewriter(poem?.poem || t.poemError[language], 30);
   const isFinishedTyping = poem?.poem === displayedPoem;
 
   // Auto-scroll effect
   useEffect(() => {
-    // Scroll mobile view
-    if (mobileTextRef.current) {
-        mobileTextRef.current.scrollTop = mobileTextRef.current.scrollHeight;
-    }
-    // Scroll desktop preview
-    if (desktopTextRef.current) {
-        desktopTextRef.current.scrollTop = desktopTextRef.current.scrollHeight;
+    if (textScrollRef.current) {
+        textScrollRef.current.scrollTop = textScrollRef.current.scrollHeight;
     }
   }, [displayedPoem]);
 
@@ -77,8 +70,6 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
   const handleCopy = () => {
     if (poem) {
       navigator.clipboard.writeText(getFullPoemText());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -437,174 +428,159 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
   );
 
   return (
-    <div className="w-full h-full flex flex-col bg-main-teal overflow-hidden">
+    <div className="w-full h-full flex flex-col-reverse md:flex-row bg-main-teal overflow-hidden">
       <style>{`
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
       `}</style>
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* Left Panel: Controls & Info - ADDED flex-1 min-h-0 to fix mobile scrolling */}
-          <div className="w-full md:w-1/3 lg:w-1/4 p-6 bg-main-teal border-b md:border-b-0 md:border-r border-shadow-dark flex flex-col z-10 shadow-xl flex-1 min-h-0">
-            <h1 className="text-2xl font-bold text-surface mb-6">{poem?.title || t.generatingTitle[language]}</h1>
-            
-            <div className="mb-8">
-                <h3 className="text-surface/80 text-sm font-bold uppercase tracking-wider mb-3">{t.customizeView[language]}</h3>
-                <div className="grid grid-cols-3 gap-2">
-                    <button 
-                        onClick={() => setSelectedTemplate(ShareTemplate.Story)}
-                        className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all ${selectedTemplate === ShareTemplate.Story ? 'bg-surface text-main-teal shadow-clay-sm-inset' : 'bg-main-teal text-surface hover:bg-surface/10'}`}
-                    >
-                        <Smartphone size={24} className="mb-1" />
-                        <span className="text-xs">{t.templateStory[language]}</span>
-                    </button>
-                    <button 
-                        onClick={() => setSelectedTemplate(ShareTemplate.Square)}
-                        className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all ${selectedTemplate === ShareTemplate.Square ? 'bg-surface text-main-teal shadow-clay-sm-inset' : 'bg-main-teal text-surface hover:bg-surface/10'}`}
-                    >
-                        <Square size={24} className="mb-1" />
-                        <span className="text-xs">{t.templateSquare[language]}</span>
-                    </button>
-                    <button 
-                        onClick={() => setSelectedTemplate(ShareTemplate.Polaroid)}
-                        className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all ${selectedTemplate === ShareTemplate.Polaroid ? 'bg-surface text-main-teal shadow-clay-sm-inset' : 'bg-main-teal text-surface hover:bg-surface/10'}`}
-                    >
-                        <ImageIcon size={24} className="mb-1" />
-                        <span className="text-xs">{t.templatePolaroid[language]}</span>
-                    </button>
-                </div>
+      
+      {/* LEFT PANEL (Controls) - Bottom on Mobile, Left on Desktop */}
+      <div className="w-full md:w-1/3 lg:w-1/4 p-4 md:p-6 bg-main-teal border-t md:border-t-0 md:border-r border-shadow-dark flex flex-col z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] md:shadow-xl shrink-0">
+        {/* Title visible only on desktop to avoid duplication on mobile */}
+        <h1 className="hidden md:block text-2xl font-bold text-surface mb-6">{poem?.title || t.generatingTitle[language]}</h1>
+        
+        <div className="mb-4 md:mb-8">
+            <h3 className="text-surface/80 text-sm font-bold uppercase tracking-wider mb-3">{t.customizeView[language]}</h3>
+            <div className="grid grid-cols-3 gap-2">
+                <button 
+                    onClick={() => setSelectedTemplate(ShareTemplate.Story)}
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all ${selectedTemplate === ShareTemplate.Story ? 'bg-surface text-main-teal shadow-clay-sm-inset' : 'bg-main-teal text-surface hover:bg-surface/10'}`}
+                >
+                    <Smartphone size={24} className="mb-1" />
+                    <span className="text-xs">{t.templateStory[language]}</span>
+                </button>
+                <button 
+                    onClick={() => setSelectedTemplate(ShareTemplate.Square)}
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all ${selectedTemplate === ShareTemplate.Square ? 'bg-surface text-main-teal shadow-clay-sm-inset' : 'bg-main-teal text-surface hover:bg-surface/10'}`}
+                >
+                    <Square size={24} className="mb-1" />
+                    <span className="text-xs">{t.templateSquare[language]}</span>
+                </button>
+                <button 
+                    onClick={() => setSelectedTemplate(ShareTemplate.Polaroid)}
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all ${selectedTemplate === ShareTemplate.Polaroid ? 'bg-surface text-main-teal shadow-clay-sm-inset' : 'bg-main-teal text-surface hover:bg-surface/10'}`}
+                >
+                    <ImageIcon size={24} className="mb-1" />
+                    <span className="text-xs">{t.templatePolaroid[language]}</span>
+                </button>
             </div>
+        </div>
 
-            <div className="flex-1 relative mb-6 md:hidden rounded-xl bg-main-teal/50 shadow-inner overflow-hidden">
-                 {/* Mobile Text View */}
-                 <div 
-                    className="absolute inset-0 overflow-y-auto p-4 no-scrollbar"
-                    ref={mobileTextRef}
-                 >
-                    <div className="whitespace-pre-wrap text-surface font-sans text-sm leading-relaxed pb-8">
-                        {displayedPoem}
-                    </div>
-                 </div>
-                 {/* Mobile Indicator */}
-                 <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-main-teal to-transparent pointer-events-none flex items-end justify-center pb-1">
-                    <ChevronDown className="text-surface animate-bounce opacity-50" size={16} />
-                 </div>
-            </div>
-
-            <div className="mt-auto flex flex-col gap-3">
-                 <ClayButton onClick={handleDownloadImage} color="accent" disabled={isDownloading || !isFinishedTyping} fullWidth>
-                    <Download className="mr-2" size={20} /> {isDownloading ? t.generating[language] : t.downloadImage[language]}
-                 </ClayButton>
-                 
-                 <ClayButton onClick={handleShareText} color="secondary" disabled={!isFinishedTyping} fullWidth className="text-sm px-2">
-                    <Share2 className="mr-1" size={18} /> {t.share[language]}
-                 </ClayButton>
-                 
-                 <ClayButton onClick={onReset} fullWidth className="mt-2">
-                    <RefreshCw className="mr-2" size={20} /> {t.createAnother[language]}
-                 </ClayButton>
-            </div>
-          </div>
-
-          {/* Right Panel: Preview Area */}
-          <div className="hidden md:flex w-full md:w-2/3 lg:w-3/4 bg-surface/5 p-8 items-center justify-center overflow-y-auto relative">
-             <div className="absolute inset-0 opacity-10 pointer-events-none" style={{backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
+        {/* Buttons Section */}
+        <div className="mt-auto flex flex-col gap-3">
+             <ClayButton onClick={handleDownloadImage} color="accent" disabled={isDownloading || !isFinishedTyping} fullWidth>
+                <Download className="mr-2" size={20} /> {isDownloading ? t.generating[language] : t.downloadImage[language]}
+             </ClayButton>
              
-             {/* Preview Container */}
-             <div 
-                className={`relative transition-all duration-500 ease-in-out shadow-2xl flex flex-col overflow-hidden ${
-                    selectedTemplate === ShareTemplate.Story ? 'aspect-[9/16] h-[85vh] rounded-3xl bg-main-teal' : 
-                    selectedTemplate === ShareTemplate.Square ? 'aspect-square h-[80vh] max-h-[800px] rounded-xl bg-surface' : 
-                    'aspect-[4/5] h-[80vh] bg-white rounded-sm p-4 pb-12' // Polaroid
-                }`}
-             >
-                {selectedTemplate === ShareTemplate.Story && (
-                    <>
-                        <div className="h-[55%] w-full relative flex-none">
+             <ClayButton onClick={handleShareText} color="secondary" disabled={!isFinishedTyping} fullWidth className="text-sm px-2">
+                <Share2 className="mr-1" size={18} /> {t.share[language]}
+             </ClayButton>
+             
+             <ClayButton onClick={onReset} fullWidth className="mt-2">
+                <RefreshCw className="mr-2" size={20} /> {t.createAnother[language]}
+             </ClayButton>
+        </div>
+      </div>
+
+      {/* RIGHT PANEL (Preview) - Top on Mobile, Right on Desktop */}
+      <div className="flex-1 w-full md:w-2/3 lg:w-3/4 bg-surface/5 p-4 md:p-8 flex items-center justify-center overflow-y-auto relative min-h-0">
+         <div className="absolute inset-0 opacity-10 pointer-events-none" style={{backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
+         
+         {/* Unified Preview Container */}
+         <div 
+            className={`relative transition-all duration-500 ease-in-out shadow-2xl flex flex-col overflow-hidden ${
+                selectedTemplate === ShareTemplate.Story ? 'aspect-[9/16] h-full md:h-[85vh] rounded-3xl bg-main-teal' : 
+                selectedTemplate === ShareTemplate.Square ? 'aspect-square max-h-[60vh] md:max-h-[80vh] w-full max-w-[600px] md:max-w-none rounded-xl bg-surface' : 
+                'aspect-[4/5] max-h-[60vh] md:max-h-[80vh] w-full max-w-[500px] md:max-w-none bg-white rounded-sm p-4 pb-12' // Polaroid
+            }`}
+         >
+            {selectedTemplate === ShareTemplate.Story && (
+                <>
+                    <div className="h-[55%] w-full relative flex-none">
+                        {image && <img src={image} className="w-full h-full object-cover" alt="Preview" />}
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-main-teal"></div>
+                    </div>
+                    <div className="flex-1 bg-surface rounded-t-[3rem] -mt-12 pt-8 px-8 pb-4 relative z-10 flex flex-col items-center text-center shadow-[0_-10px_40px_rgba(0,0,0,0.1)] min-h-0">
+                        <h2 className="text-2xl font-bold text-text-dark font-serif mb-4 flex-none">{poem?.title}</h2>
+                        
+                        {/* Story Scrollable Area */}
+                        <div className="flex-1 w-full relative min-h-0">
+                            <div 
+                                ref={textScrollRef}
+                                className="absolute inset-0 overflow-y-auto no-scrollbar pb-8"
+                                style={scrollbarHideStyles}
+                            >
+                                 <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed">
+                                    {displayedPoem}
+                                </p>
+                            </div>
+                            <ScrollIndicator />
+                        </div>
+                        
+                        {authorName && <p className="text-text-light italic text-xs mt-4 flex-none">- {authorName}</p>}
+                    </div>
+                </>
+            )}
+
+            {selectedTemplate === ShareTemplate.Square && (
+                <>
+                     <div className="h-[45%] w-full flex items-center justify-center p-4 flex-none">
+                        <div className="aspect-square h-full max-w-full bg-white border border-gray-200 shadow-sm overflow-hidden relative flex items-center justify-center">
+                            {image && <img src={image} className="max-w-full max-h-full object-contain" alt="Preview" />}
+                        </div>
+                    </div>
+                    <div className="flex-1 w-full bg-surface px-6 pb-6 flex flex-col items-center text-center overflow-hidden min-h-0">
+                         <h2 className="text-xl font-bold text-text-dark font-serif mb-2 flex-none">{poem?.title}</h2>
+                         
+                         {/* Square Scrollable Area */}
+                         <div className="flex-1 w-full relative min-h-0">
+                            <div 
+                                ref={textScrollRef}
+                                className="absolute inset-0 overflow-y-auto no-scrollbar pb-8"
+                                style={scrollbarHideStyles}
+                            >
+                                <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed">
+                                    {displayedPoem}
+                                </p>
+                            </div>
+                            <ScrollIndicator />
+                         </div>
+
+                         {authorName && <p className="text-text-light italic text-xs mt-2 flex-none">- {authorName}</p>}
+                    </div>
+                </>
+            )}
+
+            {selectedTemplate === ShareTemplate.Polaroid && (
+                <>
+                     <div className="h-[45%] w-full flex items-center justify-center mb-6 flex-none">
+                        <div className="aspect-square h-full bg-gray-100 border border-gray-200 overflow-hidden">
                             {image && <img src={image} className="w-full h-full object-cover" alt="Preview" />}
-                            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-main-teal"></div>
                         </div>
-                        <div className="flex-1 bg-surface rounded-t-[3rem] -mt-12 pt-8 px-8 pb-4 relative z-10 flex flex-col items-center text-center shadow-[0_-10px_40px_rgba(0,0,0,0.1)] min-h-0">
-                            <h2 className="text-2xl font-bold text-text-dark font-serif mb-4 flex-none">{poem?.title}</h2>
-                            
-                            {/* Story Scrollable Area */}
-                            <div className="flex-1 w-full relative min-h-0">
-                                <div 
-                                    ref={desktopTextRef}
-                                    className="absolute inset-0 overflow-y-auto no-scrollbar pb-8"
-                                    style={scrollbarHideStyles}
-                                >
-                                     <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed">
-                                        {displayedPoem}
-                                    </p>
-                                </div>
-                                <ScrollIndicator />
+                     </div>
+                     <div className="flex-1 w-full flex flex-col items-center text-center px-4 overflow-hidden min-h-0">
+                         <h2 className="text-2xl font-bold text-text-dark font-serif mb-2 flex-none">{poem?.title}</h2>
+                         
+                         {/* Polaroid Scrollable Area */}
+                         <div className="flex-1 w-full relative min-h-0">
+                            <div 
+                                ref={textScrollRef}
+                                className="absolute inset-0 overflow-y-auto no-scrollbar pb-8"
+                                style={scrollbarHideStyles}
+                            >
+                                <p className="text-text-dark whitespace-pre-wrap font-mono text-xs leading-relaxed">
+                                    {displayedPoem}
+                                </p>
                             </div>
-                            
-                            {authorName && <p className="text-text-light italic text-xs mt-4 flex-none">- {authorName}</p>}
-                        </div>
-                    </>
-                )}
-
-                {selectedTemplate === ShareTemplate.Square && (
-                    <>
-                         <div className="h-[45%] w-full flex items-center justify-center p-4 flex-none">
-                            <div className="aspect-square h-full max-w-full bg-white border border-gray-200 shadow-sm overflow-hidden relative flex items-center justify-center">
-                                {image && <img src={image} className="max-w-full max-h-full object-contain" alt="Preview" />}
-                            </div>
-                        </div>
-                        <div className="flex-1 w-full bg-surface px-6 pb-6 flex flex-col items-center text-center overflow-hidden min-h-0">
-                             <h2 className="text-xl font-bold text-text-dark font-serif mb-2 flex-none">{poem?.title}</h2>
-                             
-                             {/* Square Scrollable Area */}
-                             <div className="flex-1 w-full relative min-h-0">
-                                <div 
-                                    ref={desktopTextRef}
-                                    className="absolute inset-0 overflow-y-auto no-scrollbar pb-8"
-                                    style={scrollbarHideStyles}
-                                >
-                                    <p className="text-text-dark whitespace-pre-wrap font-serif text-sm leading-relaxed">
-                                        {displayedPoem}
-                                    </p>
-                                </div>
-                                <ScrollIndicator />
-                             </div>
-
-                             {authorName && <p className="text-text-light italic text-xs mt-2 flex-none">- {authorName}</p>}
-                        </div>
-                    </>
-                )}
-
-                {selectedTemplate === ShareTemplate.Polaroid && (
-                    <>
-                         <div className="h-[45%] w-full flex items-center justify-center mb-6 flex-none">
-                            <div className="aspect-square h-full bg-gray-100 border border-gray-200 overflow-hidden">
-                                {image && <img src={image} className="w-full h-full object-cover" alt="Preview" />}
-                            </div>
+                            <ScrollIndicator />
                          </div>
-                         <div className="flex-1 w-full flex flex-col items-center text-center px-4 overflow-hidden min-h-0">
-                             <h2 className="text-2xl font-bold text-text-dark font-serif mb-2 flex-none">{poem?.title}</h2>
-                             
-                             {/* Polaroid Scrollable Area */}
-                             <div className="flex-1 w-full relative min-h-0">
-                                <div 
-                                    ref={desktopTextRef}
-                                    className="absolute inset-0 overflow-y-auto no-scrollbar pb-8"
-                                    style={scrollbarHideStyles}
-                                >
-                                    <p className="text-text-dark whitespace-pre-wrap font-mono text-xs leading-relaxed">
-                                        {displayedPoem}
-                                    </p>
-                                </div>
-                                <ScrollIndicator />
-                             </div>
 
-                             {authorName && <p className="text-text-light italic text-xs mt-2 flex-none">- {authorName}</p>}
-                         </div>
-                    </>
-                )}
-             </div>
-          </div>
+                         {authorName && <p className="text-text-light italic text-xs mt-2 flex-none">- {authorName}</p>}
+                     </div>
+                </>
+            )}
+         </div>
       </div>
     </div>
   );
