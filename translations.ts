@@ -72,4 +72,9 @@ export const t = {
   iosInstructionsTitle: { es: 'Cómo instalar en iOS:', en: 'How to install on iOS:' },
   iosStep1: { es: '1. Toca el botón compartir', en: '1. Tap the share button' },
   iosStep2: { es: '2. Selecciona "Agregar a Inicio"', en: '2. Select "Add to Home Screen"' },
+
+  // Update Toast
+  newVersionTitle: { es: 'Nueva versión disponible', en: 'New version available' },
+  newVersionDesc: { es: 'Actualiza para ver los cambios.', en: 'Update to see changes.' },
+  updateNow: { es: 'Actualizar', en: 'Update' },
 };
