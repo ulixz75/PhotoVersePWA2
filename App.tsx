@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import './App.css'; // Asegúrate de que esta ruta sea correcta
 import { Screen, PoemStyle, PoemMood, Poem, Language } from './types';
@@ -6,6 +7,7 @@ import UploadScreen from './components/UploadScreen';
 import ProcessingScreen from './components/ProcessingScreen';
 import ResultScreen from './components/ResultScreen';
 import GalleryScreen from './components/GalleryScreen';
+import InstallPromptModal from './components/InstallPromptModal';
 import { generatePoemFromImage } from './services/geminiService';
 
 // Declara la API de comunicación con el Servicio de Delegación
@@ -29,12 +31,75 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>('es');
   const [isTwa, setIsTwa] = useState(false);
 
+  // Install Prompt State
+  const [showInstallModal, setShowInstallModal] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isIOS, setIsIOS] = useState(false);
+
   useEffect(() => {
+    // Splash screen timer
     if (screen === Screen.SPLASH) {
-      const timer = setTimeout(() => setScreen(Screen.UPLOAD), 6000);
+      const timer = setTimeout(() => {
+          setScreen(Screen.UPLOAD);
+      }, 6000);
       return () => clearTimeout(timer);
     }
   }, [screen]);
+
+  // Logic to check if we should show the install modal
+  const checkInstallEligibility = useCallback(() => {
+      // 1. Check if already installed (Standalone mode)
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                           (window.navigator as any).standalone === true;
+      
+      if (isStandalone) return;
+
+      // 2. Check user preference
+      const dontAsk = localStorage.getItem('installDismissed') === 'true';
+      if (dontAsk) return;
+
+      // 3. Detect iOS
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+      setIsIOS(isIosDevice);
+
+      // 4. Logic for showing modal
+      const sessionDismissed = sessionStorage.getItem('installSessionDismissed') === 'true';
+      if (sessionDismissed) return;
+
+      if (isIosDevice) {
+          // For iOS, show immediately upon reaching home screen
+          setShowInstallModal(true);
+      } else {
+          // For Android/Desktop, we check if the event was captured
+          if (deferredPrompt) {
+              setShowInstallModal(true);
+          }
+      }
+  }, [deferredPrompt]);
+
+  // Trigger check when entering UPLOAD screen or when deferredPrompt is set while in UPLOAD
+  useEffect(() => {
+      if (screen === Screen.UPLOAD) {
+          checkInstallEligibility();
+      }
+  }, [screen, deferredPrompt, checkInstallEligibility]);
+
+  useEffect(() => {
+    // Listen for the 'beforeinstallprompt' event (Android/Desktop)
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault(); // Prevent default mini-infobar
+      setDeferredPrompt(e);
+      console.log("beforeinstallprompt fired");
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -152,6 +217,27 @@ const App: React.FC = () => {
     setAuthorName('');
   };
 
+  // --- Install Handlers ---
+  const handleInstallClick = async () => {
+      if (deferredPrompt) {
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          if (outcome === 'accepted') {
+              console.log('User accepted the install prompt');
+              setDeferredPrompt(null);
+          }
+          setShowInstallModal(false);
+      }
+  };
+
+  const handleInstallModalClose = (dontAskAgain: boolean) => {
+      setShowInstallModal(false);
+      sessionStorage.setItem('installSessionDismissed', 'true');
+      if (dontAskAgain) {
+          localStorage.setItem('installDismissed', 'true');
+      }
+  };
+
   const renderScreen = () => {
     switch (screen) {
       case Screen.SPLASH:
@@ -187,9 +273,18 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center font-sans p-4 bg-main-teal">
-      <div className="w-full max-w-6xl h-auto min-h-[90vh] bg-main-teal shadow-clay rounded-4xl flex flex-col overflow-hidden transition-all duration-500 my-8">
+      <div className="w-full max-w-6xl h-auto min-h-[90vh] bg-main-teal shadow-clay rounded-4xl flex flex-col overflow-hidden transition-all duration-500 my-8 relative">
         {renderScreen()}
       </div>
+      
+      {/* Install Modal MOVED OUTSIDE the main container to avoid CSS clipping and transform issues */}
+      <InstallPromptModal 
+          isOpen={showInstallModal}
+          onClose={handleInstallModalClose}
+          onInstall={handleInstallClick}
+          isIOS={isIOS}
+          language={language}
+      />
     </div>
   );
 };

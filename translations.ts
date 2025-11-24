@@ -61,4 +61,15 @@ export const t = {
   gallerySubtitle: { es: 'Descubre lo que la IA puede crear', en: 'Discover what AI can create' },
   viewGallery: { es: 'Ver Ejemplos', en: 'View Examples' },
   back: { es: 'Volver', en: 'Back' },
+
+  // Install Modal
+  installTitle: { es: 'Instala FotoVerso', en: 'Install PhotoVerse' },
+  installSubtitle: { es: 'Para una mejor experiencia, instala la aplicación en tu dispositivo.', en: 'For the best experience, install the app on your device.' },
+  compatibleWith: { es: 'Compatible con:', en: 'Compatible with:' },
+  installNow: { es: 'Instalar Ahora', en: 'Install Now' },
+  remindLater: { es: 'Recordar más tarde', en: 'Remind me later' },
+  dontAsk: { es: 'No instalar', en: 'Don\'t install' },
+  iosInstructionsTitle: { es: 'Cómo instalar en iOS:', en: 'How to install on iOS:' },
+  iosStep1: { es: '1. Toca el botón compartir', en: '1. Tap the share button' },
+  iosStep2: { es: '2. Selecciona "Agregar a Inicio"', en: '2. Select "Add to Home Screen"' },
 };

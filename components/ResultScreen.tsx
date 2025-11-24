@@ -444,8 +444,8 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ poem, image, onReset, autho
         }
       `}</style>
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* Left Panel: Controls & Info */}
-          <div className="w-full md:w-1/3 lg:w-1/4 p-6 bg-main-teal border-b md:border-b-0 md:border-r border-shadow-dark flex flex-col z-10 shadow-xl">
+          {/* Left Panel: Controls & Info - ADDED flex-1 min-h-0 to fix mobile scrolling */}
+          <div className="w-full md:w-1/3 lg:w-1/4 p-6 bg-main-teal border-b md:border-b-0 md:border-r border-shadow-dark flex flex-col z-10 shadow-xl flex-1 min-h-0">
             <h1 className="text-2xl font-bold text-surface mb-6">{poem?.title || t.generatingTitle[language]}</h1>
             
             <div className="mb-8">
