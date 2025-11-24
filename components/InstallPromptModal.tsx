@@ -34,7 +34,9 @@ const InstallPromptModal: React.FC<InstallPromptModalProps> = ({ isOpen, onClose
           <X size={24} />
         </button>
 
-       
+        <div className="w-24 h-24 bg-surface rounded-2xl shadow-clay mb-6 p-2 flex items-center justify-center">
+             <img src="./icon-192x192.png" alt="App Icon" className="w-full h-full object-contain rounded-xl" />
+        </div>
 
         <h2 className="text-2xl font-bold text-surface mb-2">{t.installTitle[language]}</h2>
         <p className="text-surface/80 mb-6 text-sm leading-relaxed">
