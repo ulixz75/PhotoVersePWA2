@@ -9,56 +9,65 @@
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#14B8A6" />
     <link rel="apple-touch-icon" href="/icon-192x192.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Reemplazo del tag DEPRECATED -->
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <!-- Tailwind compilado (archivo que tú generarás con npx tailwindcss) -->
+    <link rel="stylesheet" href="/styles/output.css">
+
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind Config (esto sí es válido sin CDN) -->
     <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Nunito', 'sans-serif'],
-            },
-            colors: {
-              'main-teal': '#14B8A6',
-              'surface': '#F0FDFA',
-              'primary': '#F472B6',
-              'primary-dark': '#EC4899',
-              'secondary': '#34D399',
-              'secondary-dark': '#10B981',
-              'accent': '#FBBF24',
-              'accent-dark': '#F59E0B',
-              'text-dark': '#1F2937',
-              'text-light': '#4B5563',
-              'shadow-dark': '#0F766E',
-              'shadow-light': '#5EEAD4',
-              
-              // Card specific colors from user image
-              'card-blue': '#93C5FD',
-              'card-green': '#A7F3D0',
-              'card-yellow': '#FDE047',
-              'card-pink': '#F9A8D4',
-              'card-purple': '#D8B4FE',
-              'card-orange': '#FDBA74',
-            },
-            boxShadow: {
-              'clay': '7px 7px 15px #0F766E, -7px -7px 15px #5EEAD4',
-              'clay-inset': 'inset 7px 7px 15px #0F766E, inset -7px -7px 15px #5EEAD4',
-              'clay-sm': '4px 4px 8px #0F766E, -4px -4px 8px #5EEAD4',
-              'clay-sm-inset': 'inset 4px 4px 8px #0F766E, inset -4px -4px 8px #5EEAD4',
-            },
-            borderRadius: {
-              '4xl': '2rem',
-              '5xl': '3rem',
+      window.tailwind = {
+        config: {
+          theme: {
+            extend: {
+              fontFamily: {
+                sans: ['Nunito', 'sans-serif'],
+              },
+              colors: {
+                'main-teal': '#14B8A6',
+                'surface': '#F0FDFA',
+                'primary': '#F472B6',
+                'primary-dark': '#EC4899',
+                'secondary': '#34D399',
+                'secondary-dark': '#10B981',
+                'accent': '#FBBF24',
+                'accent-dark': '#F59E0B',
+                'text-dark': '#1F2937',
+                'text-light': '#4B5563',
+                'shadow-dark': '#0F766E',
+                'shadow-light': '#5EEAD4',
+                'card-blue': '#93C5FD',
+                'card-green': '#A7F3D0',
+                'card-yellow': '#FDE047',
+                'card-pink': '#F9A8D4',
+                'card-purple': '#D8B4FE',
+                'card-orange': '#FDBA74',
+              },
+              boxShadow: {
+                'clay': '7px 7px 15px #0F766E, -7px -7px 15px #5EEAD4',
+                'clay-inset': 'inset 7px 7px 15px #0F766E, inset -7px -7px 15px #5EEAD4',
+                'clay-sm': '4px 4px 8px #0F766E, -4px -4px 8px #5EEAD4',
+                'clay-sm-inset': 'inset 4px 4px 8px #0F766E, inset -4px -4px 8px #5EEAD4',
+              },
+              borderRadius: {
+                '4xl': '2rem',
+                '5xl': '3rem',
+              }
             }
           }
         }
-      }
+      };
     </script>
-  <script type="importmap">
+
+    <!-- Import Maps (NO TOCADO, totalmente intacto) -->
+    <script type="importmap">
 {
   "imports": {
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.20.0",
@@ -68,20 +77,26 @@
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.544.0"
   }
 }
-</script>
-</head>
+    </script>
+
+  </head>
+  
   <body class="bg-main-teal">
     <div id="root"></div>
+
+    <!-- Main entry -->
     <script type="module" src="/index.tsx"></script>
+
+    <!-- Service Worker corregido -->
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js')
-            .then(registration => {
-              console.log('ServiceWorker registration successful with scope: ', registration.scope);
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/service-worker.js")
+            .then(reg => {
+              console.log("ServiceWorker registrado con scope:", reg.scope);
             })
-            .catch(error => {
-              console.log('ServiceWorker registration failed: ', error);
+            .catch(err => {
+              console.error("Fallo al registrar ServiceWorker:", err);
             });
         });
       }
