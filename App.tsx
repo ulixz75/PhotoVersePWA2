@@ -51,36 +51,47 @@ const App: React.FC = () => {
   }, [screen]);
 
   // --- SERVICE WORKER REGISTRATION & UPDATES ---
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.js')
-            .then((registration) => {
-                console.log('SW registered with scope:', registration.scope);
+ useEffect(() => {
+  if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js')
+          .then((registration) => {
+              console.log('SW registered with scope:', registration.scope);
 
-                // Check if there is already a waiting worker (update downloaded but not activated)
-                if (registration.waiting) {
-                    setWaitingWorker(registration.waiting);
-                    setShowUpdateToast(true);
-                }
+              // Check if there is already a waiting worker (update downloaded but not activated)
+              if (registration.waiting) {
+                  setWaitingWorker(registration.waiting);
+                  setShowUpdateToast(true);
+              }
 
-                // Detect when a new update is found
-                registration.addEventListener('updatefound', () => {
-                    const newWorker = registration.installing;
-                    if (newWorker) {
-                        newWorker.addEventListener('statechange', () => {
-                            // Has content.waiting changed?
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                // New content is available; please refresh.
-                                setWaitingWorker(newWorker);
-                                setShowUpdateToast(true);
-                            }
-                        });
-                    }
-                });
-            })
-            .catch((error) => {
-                console.error('SW registration failed:', error);
-            });
+              // Detect when a new update is found
+              registration.addEventListener('updatefound', () => {
+                  const newWorker = registration.installing;
+                  if (newWorker) {
+                      newWorker.addEventListener('statechange', () => {
+                          // Solo mostrar el toast si hay un SW controlador actual
+                          // (es decir, no es la primera instalación)
+                          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                              setWaitingWorker(newWorker);
+                              setShowUpdateToast(true);
+                          }
+                      });
+                  }
+              });
+          })
+          .catch((error) => {
+              console.error('SW registration failed:', error);
+          });
+
+      // Ensure page reloads when the new SW takes control
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+              window.location.reload();
+              refreshing = true;
+          }
+      });
+  }
+}, []);
 
         // Ensure page reloads when the new SW takes control
         let refreshing = false;
