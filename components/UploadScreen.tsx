@@ -84,7 +84,7 @@ const UploadScreen: React.FC<UploadScreenProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="w-full aspect-[4/3] rounded-4xl bg-main-teal shadow-clay-sm-inset flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
+                <div className="w-full min-h-[26rem] md:min-h-0 md:aspect-[4/3] rounded-4xl bg-main-teal shadow-clay-sm-inset flex flex-col items-center justify-center p-4 text-center relative overflow-hidden">
                   <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
                   <input type="file" accept="image/*" capture="user" ref={cameraInputRef} onChange={handleFileChange} className="hidden" />
                   
